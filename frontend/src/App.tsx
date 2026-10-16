@@ -7,7 +7,9 @@ import {
     type Product,
     type CreateProductData,
 } from './api/productApi'
-import {getCategories, type Category} from './api/categoryApi'
+
+import { getCategories, createCategory, type Category } from './api/categoryApi'
+
 import * as React from "react";
 import {
     createStockMovement,
@@ -17,6 +19,9 @@ import {
 
 function App() {
     const [products, setProducts] = useState<Product[]>([])
+    const [showCategoryForm, setShowCategoryForm] = useState(false)
+    const [newCategoryName, setNewCategoryName] = useState('')
+    const [categoryError, setCategoryError] = useState('')
     const [searchTerm, setSearchTerm] = useState('')
     const [selectedCategory, setSelectedCategory] = useState('all')
     const [selectedStockStatus, setSelectedStockStatus] = useState('all')
@@ -71,6 +76,36 @@ function App() {
             setLoading(false)
         }
     }
+
+
+    const handleCreateCategory = async (event: Parameters<NonNullable<React.ComponentProps<'form'>['onSubmit']>>[0]) => {
+        event.preventDefault()
+        setCategoryError('')
+        setSuccess('')
+
+        const name = newCategoryName.trim()
+
+        if (!name) {
+            setCategoryError('Le nom de la catégorie est obligatoire.')
+            return
+        }
+
+        try {
+            await createCategory(name)
+            setNewCategoryName('')
+            setShowCategoryForm(false)
+            setSuccess('Catégorie créée avec succès !')
+
+            await loadData()
+        } catch (error) {
+            setCategoryError(
+                error instanceof Error
+                    ? error.message
+                    : 'Erreur lors de la création de la catégorie.'
+            )
+        }
+    }
+
 
     useEffect(() => {
         void loadData()
@@ -264,16 +299,31 @@ function App() {
                     </p>
                 </div>
 
-                <button
-                    className="primary-button"
-                    onClick={() => {
-                        setShowForm(!showForm)
-                        setFormError('')
-                        setSuccess('')
-                    }}
-                >
-                    {showForm ? 'Annuler' : '+ Nouveau produit'}
-                </button>
+
+                <div className="header-actions">
+                    <button
+                        className="primary-button"
+                        onClick={() => {
+                            setShowForm(!showForm)
+                            setFormError('')
+                            setSuccess('')
+                        }}
+                    >
+                        {showForm ? 'Annuler' : '+ Nouveau produit'}
+                    </button>
+
+                    <button
+                        className="primary-button"
+                        onClick={() => {
+                            setShowCategoryForm(!showCategoryForm)
+                            setFormError('')
+                            setSuccess('')
+                        }}
+                    >
+                        {showCategoryForm ? 'Annuler catégorie' : '+ Nouvelle catégorie'}
+                    </button>
+                </div>
+
 
                 <button
                     type="button"
@@ -399,6 +449,55 @@ function App() {
                     </form>
                 </section>
             )}
+
+
+            {showCategoryForm && (
+                <section className="form-section">
+                    <h2>Nouvelle catégorie</h2>
+
+                    <form onSubmit={handleCreateCategory}>
+                        <div className="form-group">
+                            <label htmlFor="new-category-name">
+                                Nom de la catégorie
+                            </label>
+
+                            <input
+                                id="new-category-name"
+                                type="text"
+                                value={newCategoryName}
+                                onChange={(event) =>
+                                    setNewCategoryName(event.target.value)
+                                }
+                                placeholder="Ex. : Informatique"
+                                required
+                            />
+                        </div>
+
+                        {categoryError && (
+                            <p className="error-message">{categoryError}</p>
+                        )}
+
+                        <div className="form-actions">
+                            <button type="submit" className="primary-button">
+                                Créer la catégorie
+                            </button>
+
+                            <button
+                                type="button"
+                                className="secondary-button"
+                                onClick={() => {
+                                    setShowCategoryForm(false)
+                                    setNewCategoryName('')
+                                    setCategoryError('')
+                                }}
+                            >
+                                Annuler
+                            </button>
+                        </div>
+                    </form>
+                </section>
+            )}
+
 
 
             {showMovementForm && (
