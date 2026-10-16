@@ -20,8 +20,8 @@ function App() {
     const [movements, setMovements] = useState<StockMovement[]>([])
     const [movementHistoryError, setMovementHistoryError] = useState('')
     const [categories, setCategories] = useState<Category[]>([])
-    const [loading] = useState(true)
-    const [error] = useState('')
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState('')
     const [showForm, setShowForm] = useState(false)
     const [saving, setSaving] = useState(false)
     const [editingProduct, setEditingProduct] = useState<Product | null>(null)
@@ -43,6 +43,9 @@ function App() {
     const [categoryId, setCategoryId] = useState('')
 
     async function loadData() {
+        setLoading(true)
+        setError('')
+
         try {
             const [productsData, categoriesData, movementsData] =
                 await Promise.all([
@@ -56,12 +59,13 @@ function App() {
             setMovements(movementsData)
             setMovementHistoryError('')
         } catch (err) {
-            setMovementHistoryError(
+            setError(
                 err instanceof Error
                     ? err.message
-                    : "Impossible de charger l'historique des mouvements."
+                    : 'Impossible de charger les données.'
             )
-            throw err
+        } finally {
+            setLoading(false)
         }
     }
 
@@ -503,6 +507,7 @@ function App() {
                             <thead>
                             <tr>
                                 <th>Produit</th>
+                                <th>Description</th>
                                 <th>SKU</th>
                                 <th>Catégorie</th>
                                 <th>Prix</th>
@@ -516,11 +521,9 @@ function App() {
                                 <tr key={product.id}>
                                     <td>
                                         <strong>{product.name}</strong>
-                                        {product.description && (
-                                            <span className="product-description">
-                          {product.description}
-                        </span>
-                                        )}
+                                    </td>
+                                    <td>
+                                        {product.description || '—'}
                                     </td>
                                     <td>{product.sku}</td>
                                     <td>{product.category?.name ?? 'Sans catégorie'}</td>
