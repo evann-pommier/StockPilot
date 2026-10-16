@@ -1,120 +1,375 @@
-import './App.css';
+import {useEffect, useState} from 'react';
+import './App.css'
+import {
+    createProduct,
+    updateProduct,
+    getProducts,
+    type Product,
+    type CreateProductData,
+} from './api/productApi'
+import {getCategories, type Category} from './api/categoryApi'
+import * as React from "react";
 
 function App() {
-  return (
-    <div className="app-layout">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-icon">S</div>
-          <span>StockPilot</span>
-        </div>
+    const [products, setProducts] = useState<Product[]>([])
+    const [categories, setCategories] = useState<Category[]>([])
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState('')
+    const [showForm, setShowForm] = useState(false)
+    const [saving, setSaving] = useState(false)
+    const [editingProduct, setEditingProduct] = useState<Product | null>(null)
+    const [formError, setFormError] = useState('')
+    const [success, setSuccess] = useState('')
 
-        <p className="nav-label">MENU PRINCIPAL</p>
+    const [name, setName] = useState('')
+    const [sku, setSku] = useState('')
+    const [description, setDescription] = useState('')
+    const [price, setPrice] = useState('')
+    const [quantity, setQuantity] = useState('0')
+    const [categoryId, setCategoryId] = useState('')
 
-        <nav className="navigation">
-          <a className="nav-item active" href="#dashboard">
-            <span>▦</span> Tableau de bord
-          </a>
-          <a className="nav-item" href="#products">
-            <span>□</span> Produits
-          </a>
-          <a className="nav-item" href="#categories">
-            <span>▤</span> Catégories
-          </a>
-          <a className="nav-item" href="#movements">
-            <span>↕</span> Mouvements de stock
-          </a>
-        </nav>
+    async function loadData() {
+        setLoading(true)
+        setError('')
 
-        <div className="sidebar-footer">
-          <div className="avatar">SP</div>
-          <div>
-            <strong>Administrateur</strong>
-            <small>Gestionnaire de stock</small>
-          </div>
-        </div>
-      </aside>
+        try {
+            const [productData, categoryData] = await Promise.all([
+                getProducts(),
+                getCategories(),
+            ])
+            setProducts(productData)
+            setCategories(categoryData)
+        } catch {
+            setError(
+                'Impossible de charger les données. Vérifie que Spring Boot est démarré.',
+            )
+        } finally {
+            setLoading(false)
+        }
+    }
 
-      <main className="main-content">
-        <header className="topbar">
-          <div>
-            <h1>Tableau de bord</h1>
-            <p>Vue d'ensemble de votre inventaire</p>
-          </div>
-          <div className="status">
-            <span className="status-dot" />
-            Interface de démonstration
-          </div>
-        </header>
+    useEffect(() => {
+        void loadData()
+    }, [])
 
-        <section className="welcome">
-          <div>
-            <p className="eyebrow">VOTRE ESPACE DE GESTION</p>
-            <h2>Bienvenue sur StockPilot 👋</h2>
-            <p>Suivez vos stocks et gérez vos produits depuis un seul endroit.</p>
-          </div>
-          <div className="welcome-icon">📦</div>
-        </section>
+    function resetForm() {
+        setName('')
+        setSku('')
+        setDescription('')
+        setPrice('')
+        setQuantity('0')
+        setCategoryId('')
+        setFormError('')
+    }
 
-        <section className="stats-grid">
-          <article className="stat-card">
-            <div className="stat-top">
-              <span>Total des produits</span>
-              <span className="stat-icon blue">▦</span>
-            </div>
-            <strong>—</strong>
-            <small>En attente de connexion à l'API</small>
-          </article>
+    function handleEditProduct(product: Product) {
+        setEditingProduct(product)
+        setName(product.name)
+        setSku(product.sku)
+        setDescription(product.description ?? '')
+        setPrice(String(product.price))
+        setQuantity(String(product.quantity))
+        setCategoryId(product.category ? String(product.category.id) : '')
+        setFormError('')
+        setSuccess('')
+        setShowForm(true)
+    }
 
-          <article className="stat-card">
-            <div className="stat-top">
-              <span>Catégories</span>
-              <span className="stat-icon purple">▤</span>
-            </div>
-            <strong>—</strong>
-            <small>Catégories enregistrées</small>
-          </article>
+    async function handleCreateProduct(
+        event: Parameters<
+            NonNullable<React.ComponentProps<'form'>['onSubmit']>
+        >[0],
+    ) {
+        event.preventDefault()
+        setFormError('')
+        setSuccess('')
 
-          <article className="stat-card">
-            <div className="stat-top">
-              <span>Stock faible</span>
-              <span className="stat-icon orange">!</span>
-            </div>
-            <strong>—</strong>
-            <small>Produits à réapprovisionner</small>
-          </article>
+        if (!categoryId) {
+            setFormError('Sélectionne une catégorie.')
+            return
+        }
 
-          <article className="stat-card">
-            <div className="stat-top">
-              <span>Mouvements</span>
-              <span className="stat-icon green">↕</span>
-            </div>
-            <strong>—</strong>
-            <small>Historique des mouvements</small>
-          </article>
-        </section>
+        const parsedPrice = Number(price)
+        const parsedQuantity = Number(quantity)
 
-        <section className="content-card">
-          <div className="section-heading">
-            <div>
-              <h2>Activité récente</h2>
-              <p>Les derniers mouvements de votre inventaire</p>
-            </div>
-            <span className="coming-soon">Bientôt disponible</span>
-          </div>
+        if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
+            setFormError('Le prix doit être un nombre positif ou nul.')
+            return
+        }
 
-          <div className="empty-state">
-            <div className="empty-icon">📋</div>
-            <h3>Aucune donnée à afficher</h3>
-            <p>
-              Les statistiques et les mouvements apparaîtront ici
-              lorsque le frontend sera connecté au backend.
-            </p>
-          </div>
-        </section>
-      </main>
-    </div>
-  );
+        if (!Number.isInteger(parsedQuantity) || parsedQuantity < 0) {
+            setFormError('La quantité doit être un entier positif ou nul.')
+            return
+        }
+
+        const productData: CreateProductData = {
+            name: name.trim(),
+            sku: sku.trim(),
+            description: description.trim(),
+            price: parsedPrice,
+            quantity: parsedQuantity,
+            category: {id: Number(categoryId)},
+        }
+
+        setSaving(true)
+
+        try {
+            if (editingProduct) {
+                await updateProduct(editingProduct.id, productData)
+                setSuccess('Produit modifié avec succès.')
+            } else {
+                await createProduct(productData)
+                setSuccess('Produit créé avec succès.')
+            }
+
+            await loadData()
+            resetForm()
+            setEditingProduct(null)
+            setShowForm(false)
+        } catch (err) {
+            setFormError(
+                err instanceof Error
+                    ? err.message
+                    : 'Une erreur est survenue lors de la création.',
+            )
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    return (
+        <main className="stockpilot">
+            <header className="app-header">
+                <div>
+                    <p className="eyebrow">GESTION D'INVENTAIRE</p>
+                    <h1>StockPilot</h1>
+                    <p className="subtitle">
+                        Gérez vos produits et suivez votre stock en un seul endroit.
+                    </p>
+                </div>
+
+                <button
+                    className="primary-button"
+                    onClick={() => {
+                        setShowForm(!showForm)
+                        setFormError('')
+                        setSuccess('')
+                    }}
+                >
+                    {showForm ? 'Annuler' : '+ Nouveau produit'}
+                </button>
+            </header>
+
+            {showForm && (
+                <section className="products-section form-section">
+                    <h2>{editingProduct ? 'Modifier le produit' : 'Nouveau produit'}</h2>
+                    <p className="form-intro">
+                        Renseigne les informations du produit ci-dessous.
+                    </p>
+
+                    <form onSubmit={handleCreateProduct}>
+                        <div className="form-grid">
+                            <label>
+                                Nom du produit *
+                                <input
+                                    required
+                                    value={name}
+                                    onChange={(event) => setName(event.target.value)}
+                                    placeholder="Clavier mécanique"
+                                />
+                            </label>
+
+                            <label>
+                                SKU *
+                                <input
+                                    required
+                                    value={sku}
+                                    onChange={(event) => setSku(event.target.value)}
+                                    placeholder="CLAV-002"
+                                />
+                            </label>
+
+                            <label className="full-width">
+                                Description
+                                <textarea
+                                    value={description}
+                                    onChange={(event) => setDescription(event.target.value)}
+                                    placeholder="Description du produit"
+                                    rows={3}
+                                />
+                            </label>
+
+                            <label>
+                                Prix (€) *
+                                <input
+                                    required
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={price}
+                                    onChange={(event) => setPrice(event.target.value)}
+                                    placeholder="79.99"
+                                />
+                            </label>
+
+                            <label>
+                                Quantité initiale *
+                                <input
+                                    required
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    value={quantity}
+                                    onChange={(event) => setQuantity(event.target.value)}
+                                />
+                            </label>
+
+                            <label className="full-width">
+                                Catégorie *
+                                <select
+                                    required
+                                    value={categoryId}
+                                    onChange={(event) => setCategoryId(event.target.value)}
+                                >
+                                    <option value="">Choisir une catégorie</option>
+                                    {categories.map((category) => (
+                                        <option key={category.id} value={category.id}>
+                                            {category.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+                        </div>
+
+                        {formError && <p className="error-message">{formError}</p>}
+
+                        <div className="form-actions">
+                            <button
+                                type="button"
+                                className="secondary-button"
+                                onClick={() => {
+                                    setShowForm(false)
+                                    setEditingProduct(null)
+                                    resetForm()
+                                }}
+                            >
+                                Annuler
+                            </button>
+                            <button
+                                type="submit"
+                                className="primary-button"
+                                disabled={saving}
+                            >
+                                {saving
+                                    ? 'Enregistrement...'
+                                    : editingProduct
+                                        ? 'Enregistrer les modifications'
+                                        : 'Créer le produit'}
+                            </button>
+                        </div>
+                    </form>
+                </section>
+            )}
+
+            {success && <p className="success-message">{success}</p>}
+
+            <section className="dashboard">
+                <div className="stat-card">
+                    <span className="stat-label">Références produits</span>
+                    <strong className="stat-value">{products.length}</strong>
+                </div>
+
+                <div className="stat-card">
+                    <span className="stat-label">Unités en stock</span>
+                    <strong className="stat-value">
+                        {products.reduce((total, product) => total + product.quantity, 0)}
+                    </strong>
+                </div>
+
+                <div className="stat-card">
+                    <span className="stat-label">Stock faible</span>
+                    <strong className="stat-value">
+                        {products.filter((product) => product.quantity <= 5).length}
+                    </strong>
+                </div>
+            </section>
+
+            <section className="products-section">
+                <div className="section-heading">
+                    <div>
+                        <h2>Vos produits</h2>
+                        <p>Consultez les quantités disponibles et les prix.</p>
+                    </div>
+                </div>
+
+                {loading && <p className="message">Chargement des produits...</p>}
+                {error && <p className="error-message">{error}</p>}
+
+                {!loading && !error && products.length === 0 && (
+                    <p className="message">Aucun produit pour le moment.</p>
+                )}
+
+                {!loading && !error && products.length > 0 && (
+                    <div className="table-wrapper">
+                        <table>
+                            <thead>
+                            <tr>
+                                <th>Produit</th>
+                                <th>SKU</th>
+                                <th>Catégorie</th>
+                                <th>Prix</th>
+                                <th>Quantité</th>
+                                <th>État du stock</th>
+                                <th>Actions</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {products.map((product) => (
+                                <tr key={product.id}>
+                                    <td>
+                                        <strong>{product.name}</strong>
+                                        {product.description && (
+                                            <span className="product-description">
+                          {product.description}
+                        </span>
+                                        )}
+                                    </td>
+                                    <td>{product.sku}</td>
+                                    <td>{product.category?.name ?? 'Sans catégorie'}</td>
+                                    <td>
+                                        {Number(product.price).toLocaleString('fr-FR', {
+                                            style: 'currency',
+                                            currency: 'EUR',
+                                        })}
+                                    </td>
+                                    <td>{product.quantity}</td>
+                                    <td>
+                                        <span
+                                            className={`stock-badge ${
+                                                product.quantity <= 5 ? 'stock-low' : 'stock-normal'
+                                            }`}
+                                        >
+                                            {product.quantity <= 5 ? 'Stock faible' : 'Disponible'}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <button
+                                            type="button"
+                                            className="secondary-button"
+                                            onClick={() => handleEditProduct(product)}
+                                        >
+                                            Modifier
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </section>
+        </main>
+    )
 }
 
-export default App;
+export default App
