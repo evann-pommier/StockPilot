@@ -17,6 +17,7 @@ import {
 
 function App() {
     const [products, setProducts] = useState<Product[]>([])
+    const [searchTerm, setSearchTerm] = useState('')
     const [movements, setMovements] = useState<StockMovement[]>([])
     const [movementHistoryError, setMovementHistoryError] = useState('')
     const [categories, setCategories] = useState<Category[]>([])
@@ -225,7 +226,21 @@ function App() {
             setSaving(false)
         }
     }
+    const normalizeText = (text: string) =>
+        text
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
 
+    const filteredProducts = products.filter((product) => {
+        const search = normalizeText(searchTerm.trim())
+
+        return (
+            normalizeText(product.name).includes(search) ||
+            normalizeText(product.sku).includes(search) ||
+            normalizeText(product.category?.name ?? '').includes(search)
+        )
+    })
     return (
         <main className="stockpilot">
             <header className="app-header">
@@ -494,14 +509,31 @@ function App() {
                     </div>
                 </div>
 
+                <div className="search-container">
+                    <input
+                        type="text"
+                        placeholder="Rechercher un produit par nom, SKU ou catégorie..."
+                        value={searchTerm}
+                        onChange={(event) => setSearchTerm(event.target.value)}
+                    />
+                </div>
+
                 {loading && <p className="message">Chargement des produits...</p>}
                 {error && <p className="error-message">{error}</p>}
 
                 {!loading && !error && products.length === 0 && (
                     <p className="message">Aucun produit pour le moment.</p>
                 )}
+                {!loading &&
+                    !error &&
+                    products.length > 0 &&
+                    filteredProducts.length === 0 && (
+                        <p className="message">
+                            Aucun produit ne correspond à « {searchTerm} ».
+                        </p>
+                    )}
 
-                {!loading && !error && products.length > 0 && (
+                {!loading && !error && filteredProducts.length > 0 && (
                     <div className="table-wrapper">
                         <table>
                             <thead>
@@ -517,7 +549,7 @@ function App() {
                             </tr>
                             </thead>
                             <tbody>
-                            {products.map((product) => (
+                            {filteredProducts.map((product) => (
                                 <tr key={product.id}>
                                     <td>
                                         <strong>{product.name}</strong>
