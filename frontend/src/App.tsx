@@ -1,12 +1,15 @@
 import {useEffect, useState} from 'react';
 import './App.css'
+
 import {
     createProduct,
     updateProduct,
+    deleteProduct,
     getProducts,
     type Product,
     type CreateProductData,
 } from './api/productApi'
+
 
 import { getCategories, createCategory, type Category } from './api/categoryApi'
 
@@ -105,6 +108,33 @@ function App() {
             )
         }
     }
+
+
+    const handleDeleteProduct = async (product: Product) => {
+        const confirmed = window.confirm(
+            `Voulez-vous vraiment supprimer le produit « ${product.name} » ?`
+        )
+
+        if (!confirmed) {
+            return
+        }
+
+        setError('')
+        setSuccess('')
+
+        try {
+            await deleteProduct(product.id)
+            setSuccess(`Le produit « ${product.name} » a été supprimé.`)
+            await loadData()
+        } catch (error) {
+            setError(
+                error instanceof Error
+                    ? error.message
+                    : 'Erreur lors de la suppression du produit.'
+            )
+        }
+    }
+
 
 
     useEffect(() => {
@@ -715,13 +745,25 @@ function App() {
                                         </span>
                                     </td>
                                     <td>
-                                        <button
-                                            type="button"
-                                            className="secondary-button"
-                                            onClick={() => handleEditProduct(product)}
-                                        >
-                                            Modifier
-                                        </button>
+
+                                        <div className="action-buttons">
+                                            <button
+                                                type="button"
+                                                className="secondary-button"
+                                                onClick={() => handleEditProduct(product)}
+                                            >
+                                                Modifier
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                className="danger-button"
+                                                onClick={() => handleDeleteProduct(product)}
+                                            >
+                                                Supprimer
+                                            </button>
+                                        </div>
+
                                     </td>
                                 </tr>
                             ))}

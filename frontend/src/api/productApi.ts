@@ -80,3 +80,16 @@ export async function updateProduct(
 
   return (await response.json()) as Product;
 }
+
+export async function deleteProduct(id: number): Promise<void> {
+  const response = await fetch(`${API_URL}/${id}`, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(
+        message || `Erreur lors de la suppression : ${response.status}`,
+    );
+  }
+}
