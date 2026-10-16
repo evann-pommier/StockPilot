@@ -9,15 +9,29 @@ import {
 } from './api/productApi'
 import {getCategories, type Category} from './api/categoryApi'
 import * as React from "react";
+import {
+    createStockMovement,
+    getStockMovements,
+    type StockMovement,
+} from './api/stockMovementApi'
 
 function App() {
     const [products, setProducts] = useState<Product[]>([])
+    const [movements, setMovements] = useState<StockMovement[]>([])
+    const [movementHistoryError, setMovementHistoryError] = useState('')
     const [categories, setCategories] = useState<Category[]>([])
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState('')
+    const [loading] = useState(true)
+    const [error] = useState('')
     const [showForm, setShowForm] = useState(false)
     const [saving, setSaving] = useState(false)
     const [editingProduct, setEditingProduct] = useState<Product | null>(null)
+    const [showMovementForm, setShowMovementForm] = useState(false)
+    const [movementProductId, setMovementProductId] = useState('')
+    const [movementType, setMovementType] = useState<'IN' | 'OUT'>('IN')
+    const [movementQuantity, setMovementQuantity] = useState('1')
+    const [movementError, setMovementError] = useState('')
+    const [movementSuccess, setMovementSuccess] = useState('')
+    const [savingMovement, setSavingMovement] = useState(false)
     const [formError, setFormError] = useState('')
     const [success, setSuccess] = useState('')
 
@@ -29,22 +43,25 @@ function App() {
     const [categoryId, setCategoryId] = useState('')
 
     async function loadData() {
-        setLoading(true)
-        setError('')
-
         try {
-            const [productData, categoryData] = await Promise.all([
-                getProducts(),
-                getCategories(),
-            ])
-            setProducts(productData)
-            setCategories(categoryData)
-        } catch {
-            setError(
-                'Impossible de charger les données. Vérifie que Spring Boot est démarré.',
+            const [productsData, categoriesData, movementsData] =
+                await Promise.all([
+                    getProducts(),
+                    getCategories(),
+                    getStockMovements(),
+                ])
+
+            setProducts(productsData)
+            setCategories(categoriesData)
+            setMovements(movementsData)
+            setMovementHistoryError('')
+        } catch (err) {
+            setMovementHistoryError(
+                err instanceof Error
+                    ? err.message
+                    : "Impossible de charger l'historique des mouvements."
             )
-        } finally {
-            setLoading(false)
+            throw err
         }
     }
 
@@ -74,6 +91,74 @@ function App() {
         setSuccess('')
         setShowForm(true)
     }
+
+    async function handleCreateMovement(
+        event: Parameters<
+            NonNullable<React.ComponentProps<'form'>['onSubmit']>
+        >[0],
+    ) {
+        event.preventDefault()
+        setMovementError('')
+        setMovementSuccess('')
+
+        if (!movementProductId) {
+            setMovementError('Sélectionne un produit.')
+            return
+        }
+
+        const parsedQuantity = Number(movementQuantity)
+
+        if (!Number.isInteger(parsedQuantity) || parsedQuantity <= 0) {
+            setMovementError('La quantité doit être un entier supérieur à zéro.')
+            return
+        }
+
+        const product = products.find(
+            (item) => item.id === Number(movementProductId),
+        )
+
+        if (!product) {
+            setMovementError('Le produit sélectionné est introuvable.')
+            return
+        }
+
+        if (movementType === 'OUT' && parsedQuantity > product.quantity) {
+            setMovementError(
+                `Stock insuffisant : ${product.quantity} unité(s) disponible(s).`,
+            )
+            return
+        }
+
+        setSavingMovement(true)
+
+        try {
+            await createStockMovement(
+                product.id,
+                movementType,
+                parsedQuantity,
+            )
+
+            await loadData()
+
+            setMovementSuccess(
+                movementType === 'IN'
+                    ? 'Entrée de stock enregistrée avec succès.'
+                    : 'Sortie de stock enregistrée avec succès.',
+            )
+
+            setMovementQuantity('1')
+            setShowMovementForm(false)
+        } catch (err) {
+            setMovementError(
+                err instanceof Error
+                    ? err.message
+                    : 'Une erreur est survenue lors du mouvement de stock.',
+            )
+        } finally {
+            setSavingMovement(false)
+        }
+    }
+
 
     async function handleCreateProduct(
         event: Parameters<
@@ -158,6 +243,19 @@ function App() {
                 >
                     {showForm ? 'Annuler' : '+ Nouveau produit'}
                 </button>
+
+                <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => {
+                        setShowMovementForm(!showMovementForm)
+                        setMovementError('')
+                        setMovementSuccess('')
+                    }}
+                >
+                    {showMovementForm ? 'Annuler le mouvement' : 'Mouvement de stock'}
+                </button>
+
             </header>
 
             {showForm && (
@@ -271,6 +369,96 @@ function App() {
                 </section>
             )}
 
+
+            {showMovementForm && (
+                <section className="products-section form-section">
+                    <h2>Mouvement de stock</h2>
+                    <p className="form-intro">
+                        Enregistre une entrée ou une sortie de stock.
+                    </p>
+
+                    <form onSubmit={handleCreateMovement}>
+                        <div className="form-grid">
+                            <label className="full-width">
+                                Produit *
+                                <select
+                                    required
+                                    value={movementProductId}
+                                    onChange={(event) =>
+                                        setMovementProductId(event.target.value)
+                                    }
+                                >
+                                    <option value="">Choisir un produit</option>
+                                    {products.map((product) => (
+                                        <option key={product.id} value={product.id}>
+                                            {product.name} — Stock : {product.quantity}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+
+                            <label>
+                                Type de mouvement *
+                                <select
+                                    value={movementType}
+                                    onChange={(event) =>
+                                        setMovementType(event.target.value as 'IN' | 'OUT')
+                                    }
+                                >
+                                    <option value="IN">Entrée de stock</option>
+                                    <option value="OUT">Sortie de stock</option>
+                                </select>
+                            </label>
+
+                            <label>
+                                Quantité *
+                                <input
+                                    required
+                                    type="number"
+                                    min="1"
+                                    step="1"
+                                    value={movementQuantity}
+                                    onChange={(event) =>
+                                        setMovementQuantity(event.target.value)
+                                    }
+                                />
+                            </label>
+                        </div>
+
+                        {movementError && (
+                            <p className="error-message">{movementError}</p>
+                        )}
+
+                        {movementSuccess && (
+                            <p className="success-message">{movementSuccess}</p>
+                        )}
+
+                        <div className="form-actions">
+                            <button
+                                type="button"
+                                className="secondary-button"
+                                onClick={() => {
+                                    setShowMovementForm(false)
+                                    setMovementError('')
+                                }}
+                            >
+                                Annuler
+                            </button>
+
+                            <button
+                                type="submit"
+                                className="primary-button"
+                                disabled={savingMovement || products.length === 0}
+                            >
+                                {savingMovement
+                                    ? 'Enregistrement...'
+                                    : 'Enregistrer le mouvement'}
+                            </button>
+                        </div>
+                    </form>
+                </section>
+            )}
+
             {success && <p className="success-message">{success}</p>}
 
             <section className="dashboard">
@@ -361,6 +549,66 @@ function App() {
                                             Modifier
                                         </button>
                                     </td>
+                                </tr>
+                            ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </section>
+
+            <section className="dashboard-section">
+                <h2>Historique des mouvements</h2>
+
+                {movementHistoryError && (
+                    <p className="error-message">{movementHistoryError}</p>
+                )}
+
+                {!movementHistoryError && movements.length === 0 && (
+                    <p>Aucun mouvement de stock enregistré pour le moment.</p>
+                )}
+
+                {movements.length > 0 && (
+                    <div className="table-container">
+                        <table>
+                            <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Date et heure</th>
+                                <th>Produit</th>
+                                <th>Type</th>
+                                <th>Quantité</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {[...movements].reverse().map((movement) => (
+                                <tr key={movement.id}>
+                                    <td>{movement.id}</td>
+                                    <td>
+                                        {new Date(movement.createdAt).toLocaleString('fr-FR', {
+                                            dateStyle: 'short',
+                                            timeStyle: 'short',
+                                        })}
+                                    </td>
+                                    <td>
+                                        {movement.product?.name ?? 'Produit inconnu'}
+                                    </td>
+                                    <td>
+                                            <span
+                                                className={`stock-badge ${
+                                                    movement.type === 'IN'
+                                                        ? 'stock-normal'
+                                                        : 'stock-low'
+                                                }`}
+                                            >
+                                                {movement.type === 'IN'
+                                                    ? 'Entrée'
+                                                    : movement.type === 'OUT'
+                                                        ? 'Sortie'
+                                                        : 'Ajustement'}
+                                            </span>
+                                    </td>
+                                    <td>{movement.quantity}</td>
                                 </tr>
                             ))}
                             </tbody>
