@@ -17,4 +17,6 @@ public interface StockMovementRepository
     List<StockMovement> findByProductIdOrderByCreatedAtDesc(Long productId);
 
     List<StockMovement> findAllByOrderByCreatedAtDesc();
+
+    boolean existsByProductId(Long productId);
 }
