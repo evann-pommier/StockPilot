@@ -4,6 +4,7 @@ package fr.stockpilot.stockpilot.model;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -46,6 +47,7 @@ public class Category {
     @Column(length = 500)
     private String description;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "category")
     private List<Product> products = new ArrayList<>();
 

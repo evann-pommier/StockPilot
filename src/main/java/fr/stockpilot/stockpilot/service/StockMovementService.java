@@ -20,4 +20,7 @@ public interface StockMovementService {
     List<StockMovement> getMovementsByProduct(Long productId);
 
     List<StockMovement> getMovementsByType(MovementType type);
+
+    void deleteMovement(Long id);
+
 }

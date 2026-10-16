@@ -1,6 +1,7 @@
 
 package fr.stockpilot.stockpilot.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -33,6 +34,7 @@ public class StockMovement {
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @JsonIgnore
     @NotNull(message = "Le produit est obligatoire")
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "product_id", nullable = false)

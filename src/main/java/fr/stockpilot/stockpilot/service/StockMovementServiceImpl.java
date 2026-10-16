@@ -104,4 +104,38 @@ public class StockMovementServiceImpl implements StockMovementService {
 
         return stockMovementRepository.findByType(type);
     }
+
+    @Override
+    @Transactional
+    public void deleteMovement(Long id) {
+        StockMovement movement = stockMovementRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Mouvement introuvable avec l'identifiant : " + id
+                ));
+
+        Product product = movement.getProduct();
+        Integer quantity = movement.getQuantity();
+
+        switch (movement.getType()) {
+            case IN -> {
+                if (product.getQuantity() < quantity) {
+                    throw new IllegalStateException(
+                            "Impossible de supprimer ce mouvement : "
+                                    + "le stock actuel est insuffisant pour annuler cette entrée."
+                    );
+                }
+                product.setQuantity(product.getQuantity() - quantity);
+            }
+
+            case OUT -> product.setQuantity(product.getQuantity() + quantity);
+
+            case ADJUSTMENT -> throw new IllegalArgumentException(
+                    "La suppression des ajustements n'est pas prise en charge."
+            );
+        }
+
+        productRepository.save(product);
+        stockMovementRepository.delete(movement);
+    }
+
 }
