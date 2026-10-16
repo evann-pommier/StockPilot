@@ -18,6 +18,8 @@ import {
 function App() {
     const [products, setProducts] = useState<Product[]>([])
     const [searchTerm, setSearchTerm] = useState('')
+    const [selectedCategory, setSelectedCategory] = useState('all')
+    const [selectedStockStatus, setSelectedStockStatus] = useState('all')
     const [movements, setMovements] = useState<StockMovement[]>([])
     const [movementHistoryError, setMovementHistoryError] = useState('')
     const [categories, setCategories] = useState<Category[]>([])
@@ -235,11 +237,21 @@ function App() {
     const filteredProducts = products.filter((product) => {
         const search = normalizeText(searchTerm.trim())
 
-        return (
+        const matchesSearch =
             normalizeText(product.name).includes(search) ||
             normalizeText(product.sku).includes(search) ||
             normalizeText(product.category?.name ?? '').includes(search)
-        )
+
+        const matchesCategory =
+            selectedCategory === 'all' ||
+            String(product.category?.id ?? '') === selectedCategory
+
+        const matchesStockStatus =
+            selectedStockStatus === 'all' ||
+            (selectedStockStatus === 'low' && product.quantity <= 5) ||
+            (selectedStockStatus === 'available' && product.quantity > 5)
+
+        return matchesSearch && matchesCategory && matchesStockStatus
     })
     return (
         <main className="stockpilot">
@@ -482,19 +494,19 @@ function App() {
 
             <section className="dashboard">
                 <div className="stat-card">
-                    <span className="stat-label">Références produits</span>
+                    <span className="stat-label">Références produits : </span>
                     <strong className="stat-value">{products.length}</strong>
                 </div>
 
                 <div className="stat-card">
-                    <span className="stat-label">Unités en stock</span>
+                    <span className="stat-label">Unités en stock : </span>
                     <strong className="stat-value">
                         {products.reduce((total, product) => total + product.quantity, 0)}
                     </strong>
                 </div>
 
                 <div className="stat-card">
-                    <span className="stat-label">Stock faible</span>
+                    <span className="stat-label">Stock faible : </span>
                     <strong className="stat-value">
                         {products.filter((product) => product.quantity <= 5).length}
                     </strong>
@@ -516,6 +528,34 @@ function App() {
                         value={searchTerm}
                         onChange={(event) => setSearchTerm(event.target.value)}
                     />
+                </div>
+                <div className="filter-container">
+                    <label htmlFor="category-filter">Catégorie :</label>
+                    <select
+                        id="category-filter"
+                        value={selectedCategory}
+                        onChange={(event) => setSelectedCategory(event.target.value)}
+                    >
+                        <option value="all">Toutes les catégories</option>
+                        {categories.map((category) => (
+                            <option key={category.id} value={String(category.id)}>
+                                {category.name}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                <div className="filter-container">
+                    <label htmlFor="stock-status-filter">État du stock :</label>
+                    <select
+                        id="stock-status-filter"
+                        value={selectedStockStatus}
+                        onChange={(event) => setSelectedStockStatus(event.target.value)}
+                    >
+                        <option value="all">Tous les stocks</option>
+                        <option value="available">Disponible</option>
+                        <option value="low">Stock faible</option>
+                    </select>
                 </div>
 
                 {loading && <p className="message">Chargement des produits...</p>}
