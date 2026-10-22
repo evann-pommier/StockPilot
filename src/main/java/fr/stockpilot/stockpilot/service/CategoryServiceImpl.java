@@ -1,5 +1,8 @@
 package fr.stockpilot.stockpilot.service;
 
+import fr.stockpilot.stockpilot.exception.BusinessRuleException;
+import fr.stockpilot.stockpilot.exception.DuplicateResourceException;
+import fr.stockpilot.stockpilot.exception.ResourceNotFoundException;
 import fr.stockpilot.stockpilot.model.Category;
 import fr.stockpilot.stockpilot.repository.CategoryRepository;
 import fr.stockpilot.stockpilot.service.CategoryService;
@@ -20,7 +23,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Transactional
     public Category createCategory(Category category) {
         if (categoryRepository.existsByNameIgnoreCase(category.getName())) {
-            throw new IllegalArgumentException(
+            throw new DuplicateResourceException(
                     "Une catégorie portant ce nom existe déjà."
             );
         }
@@ -31,7 +34,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public Category getCategoryById(Long id) {
         return categoryRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException(
+                .orElseThrow(() -> new ResourceNotFoundException(
                         "Catégorie introuvable avec l'identifiant : " + id
                 ));
     }
@@ -51,7 +54,7 @@ public class CategoryServiceImpl implements CategoryService {
 
         if (nameChanged
                 && categoryRepository.existsByNameIgnoreCase(category.getName())) {
-            throw new IllegalArgumentException(
+            throw new DuplicateResourceException(
                     "Une catégorie portant ce nom existe déjà."
             );
         }
@@ -68,7 +71,7 @@ public class CategoryServiceImpl implements CategoryService {
         Category category = getCategoryById(id);
 
         if (!category.getProducts().isEmpty()) {
-            throw new IllegalStateException(
+            throw new BusinessRuleException(
                     "Impossible de supprimer une catégorie contenant des produits."
             );
         }

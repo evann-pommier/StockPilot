@@ -1,5 +1,7 @@
 package fr.stockpilot.stockpilot.service;
 
+import fr.stockpilot.stockpilot.exception.BusinessRuleException;
+import fr.stockpilot.stockpilot.exception.ResourceNotFoundException;
 import fr.stockpilot.stockpilot.model.MovementType;
 import fr.stockpilot.stockpilot.model.Product;
 import fr.stockpilot.stockpilot.model.StockMovement;
@@ -40,7 +42,7 @@ public class StockMovementServiceImpl implements StockMovementService {
         }
 
         Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new IllegalArgumentException(
+                .orElseThrow(() -> new ResourceNotFoundException(
                         "Produit introuvable avec l'identifiant : " + productId
                 ));
 
@@ -49,7 +51,7 @@ public class StockMovementServiceImpl implements StockMovementService {
 
             case OUT -> {
                 if (product.getQuantity() < quantity) {
-                    throw new IllegalStateException(
+                    throw new BusinessRuleException(
                             "Stock insuffisant pour effectuer cette sortie."
                     );
                 }
@@ -72,7 +74,7 @@ public class StockMovementServiceImpl implements StockMovementService {
     @Override
     public StockMovement getMovementById(Long id) {
         return stockMovementRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException(
+                .orElseThrow(() -> new ResourceNotFoundException(
                         "Mouvement introuvable avec l'identifiant : " + id
                 ));
     }
@@ -85,7 +87,7 @@ public class StockMovementServiceImpl implements StockMovementService {
     @Override
     public List<StockMovement> getMovementsByProduct(Long productId) {
         if (!productRepository.existsById(productId)) {
-            throw new IllegalArgumentException(
+            throw new ResourceNotFoundException(
                     "Produit introuvable avec l'identifiant : " + productId
             );
         }
@@ -109,7 +111,7 @@ public class StockMovementServiceImpl implements StockMovementService {
     @Transactional
     public void deleteMovement(Long id) {
         StockMovement movement = stockMovementRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException(
+                .orElseThrow(() -> new ResourceNotFoundException(
                         "Mouvement introuvable avec l'identifiant : " + id
                 ));
 
@@ -119,7 +121,7 @@ public class StockMovementServiceImpl implements StockMovementService {
         switch (movement.getType()) {
             case IN -> {
                 if (product.getQuantity() < quantity) {
-                    throw new IllegalStateException(
+                    throw new BusinessRuleException(
                             "Impossible de supprimer ce mouvement : "
                                     + "le stock actuel est insuffisant pour annuler cette entrée."
                     );

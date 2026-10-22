@@ -1,5 +1,8 @@
 package fr.stockpilot.stockpilot.service;
 
+import fr.stockpilot.stockpilot.exception.BusinessRuleException;
+import fr.stockpilot.stockpilot.exception.DuplicateResourceException;
+import fr.stockpilot.stockpilot.exception.ResourceNotFoundException;
 import fr.stockpilot.stockpilot.model.Category;
 import fr.stockpilot.stockpilot.model.Product;
 import fr.stockpilot.stockpilot.repository.CategoryRepository;
@@ -33,7 +36,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public Product getProductById(Long id) {
         return productRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException(
+                .orElseThrow(() -> new ResourceNotFoundException(
                         "Produit introuvable avec l'identifiant : " + id
                 ));
     }
@@ -70,7 +73,7 @@ public class ProductServiceImpl implements ProductService {
         Product product = getProductById(id);
 
         if (!product.getStockMovements().isEmpty()) {
-            throw new IllegalStateException(
+            throw new BusinessRuleException(
                     "Impossible de supprimer un produit ayant un historique de stock."
             );
         }
@@ -108,7 +111,7 @@ public class ProductServiceImpl implements ProductService {
         }
 
         if (productRepository.existsBySkuIgnoreCase(sku)) {
-            throw new IllegalArgumentException(
+            throw new DuplicateResourceException(
                     "Un produit utilisant cette référence SKU existe déjà."
             );
         }
@@ -122,7 +125,7 @@ public class ProductServiceImpl implements ProductService {
         }
 
         return categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new IllegalArgumentException(
+                .orElseThrow(() -> new ResourceNotFoundException(
                         "Catégorie introuvable avec l'identifiant : " + categoryId
                 ));
     }
