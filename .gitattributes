@@ -1,2 +1,11 @@
-/mvnw text eol=lf
+# Normalise les fins de ligne : LF dans le dépôt et en local.
+* text=auto eol=lf
+
+# Scripts Windows
 *.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binaires
+*.png binary
+*.jpg binary
+*.jar binary
