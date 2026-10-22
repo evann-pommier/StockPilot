@@ -1,7 +1,10 @@
 package fr.stockpilot.stockpilot.controller;
 
-import fr.stockpilot.stockpilot.model.Category;
+import fr.stockpilot.stockpilot.dto.CategoryRequest;
+import fr.stockpilot.stockpilot.dto.CategoryResponse;
 import fr.stockpilot.stockpilot.service.CategoryService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -9,35 +12,34 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/categories")
+@RequiredArgsConstructor
 public class CategoryController {
 
     private final CategoryService categoryService;
 
-    public CategoryController(CategoryService categoryService) {
-        this.categoryService = categoryService;
-    }
-
     @GetMapping
-    public List<Category> getAllCategories() {
-        return categoryService.getAllCategories();
+    public List<CategoryResponse> getAllCategories() {
+        return categoryService.getAllCategories().stream()
+                .map(CategoryResponse::from)
+                .toList();
     }
 
     @GetMapping("/{id}")
-    public Category getCategoryById(@PathVariable Long id) {
-        return categoryService.getCategoryById(id);
+    public CategoryResponse getCategoryById(@PathVariable Long id) {
+        return CategoryResponse.from(categoryService.getCategoryById(id));
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Category createCategory(@RequestBody Category category) {
-        return categoryService.createCategory(category);
+    public CategoryResponse createCategory(@Valid @RequestBody CategoryRequest request) {
+        return CategoryResponse.from(categoryService.createCategory(request.toEntity()));
     }
 
     @PutMapping("/{id}")
-    public Category updateCategory(
+    public CategoryResponse updateCategory(
             @PathVariable Long id,
-            @RequestBody Category category) {
-        return categoryService.updateCategory(id, category);
+            @Valid @RequestBody CategoryRequest request) {
+        return CategoryResponse.from(categoryService.updateCategory(id, request.toEntity()));
     }
 
     @DeleteMapping("/{id}")

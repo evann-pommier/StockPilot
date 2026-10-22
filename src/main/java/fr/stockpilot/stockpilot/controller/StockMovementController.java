@@ -1,8 +1,12 @@
 package fr.stockpilot.stockpilot.controller;
 
+import fr.stockpilot.stockpilot.dto.MovementRequest;
+import fr.stockpilot.stockpilot.dto.MovementResponse;
 import fr.stockpilot.stockpilot.model.MovementType;
 import fr.stockpilot.stockpilot.model.StockMovement;
 import fr.stockpilot.stockpilot.service.StockMovementService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -10,45 +14,36 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/movements")
+@RequiredArgsConstructor
 public class StockMovementController {
 
     private final StockMovementService stockMovementService;
 
-    public StockMovementController(
-            StockMovementService stockMovementService) {
-        this.stockMovementService = stockMovementService;
-    }
-
     @GetMapping
-    public List<StockMovement> getAllMovements() {
-        return stockMovementService.getAllMovements();
+    public List<MovementResponse> getAllMovements() {
+        return toResponses(stockMovementService.getAllMovements());
     }
 
     @GetMapping("/{id}")
-    public StockMovement getMovementById(@PathVariable Long id) {
-        return stockMovementService.getMovementById(id);
+    public MovementResponse getMovementById(@PathVariable Long id) {
+        return MovementResponse.from(stockMovementService.getMovementById(id));
     }
 
     @GetMapping("/product/{productId}")
-    public List<StockMovement> getMovementsByProduct(
-            @PathVariable Long productId) {
-        return stockMovementService.getMovementsByProduct(productId);
+    public List<MovementResponse> getMovementsByProduct(@PathVariable Long productId) {
+        return toResponses(stockMovementService.getMovementsByProduct(productId));
     }
 
     @GetMapping("/type/{type}")
-    public List<StockMovement> getMovementsByType(
-            @PathVariable MovementType type) {
-        return stockMovementService.getMovementsByType(type);
+    public List<MovementResponse> getMovementsByType(@PathVariable MovementType type) {
+        return toResponses(stockMovementService.getMovementsByType(type));
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public StockMovement createMovement(
-            @RequestParam Long productId,
-            @RequestParam MovementType type,
-            @RequestParam int quantity) {
-        return stockMovementService.recordMovement(
-                productId, type, quantity);
+    public MovementResponse createMovement(@Valid @RequestBody MovementRequest request) {
+        return MovementResponse.from(stockMovementService.recordMovement(
+                request.productId(), request.type(), request.quantity()));
     }
 
     @DeleteMapping("/{id}")
@@ -57,4 +52,7 @@ public class StockMovementController {
         stockMovementService.deleteMovement(id);
     }
 
+    private List<MovementResponse> toResponses(List<StockMovement> movements) {
+        return movements.stream().map(MovementResponse::from).toList();
+    }
 }
