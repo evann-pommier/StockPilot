@@ -1,839 +1,194 @@
-import {useEffect, useState} from 'react';
+import { useMemo, useState } from 'react'
 import './App.css'
+import { createCategory } from './api/categoryApi'
+import { createProduct, deleteProduct, updateProduct } from './api/productApi'
+import { createStockMovement } from './api/stockMovementApi'
+import type { Product, ProductInput } from './api/types'
+import { CategoryForm } from './components/CategoryForm'
+import { MovementForm, type EditableMovementType } from './components/MovementForm'
+import { MovementHistory } from './components/MovementHistory'
+import { ProductFilters } from './components/ProductFilters'
+import { ProductForm } from './components/ProductForm'
+import { ProductTable } from './components/ProductTable'
+import { StatsCards } from './components/StatsCards'
+import { useStockData } from './hooks/useStockData'
+import { computeStats, DEFAULT_FILTERS, filterProducts } from './lib/stock'
 
-import {
-    createProduct,
-    updateProduct,
-    deleteProduct,
-    getProducts,
-    type Product,
-    type CreateProductData,
-} from './api/productApi'
-
-
-import { getCategories, createCategory, type Category } from './api/categoryApi'
-
-import * as React from "react";
-import {
-    createStockMovement,
-    getStockMovements,
-    type StockMovement,
-} from './api/stockMovementApi'
+/** Un seul panneau de saisie ouvert à la fois. */
+type Panel = 'product' | 'category' | 'movement' | null
 
 function App() {
-    const [products, setProducts] = useState<Product[]>([])
-    const [showCategoryForm, setShowCategoryForm] = useState(false)
-    const [newCategoryName, setNewCategoryName] = useState('')
-    const [categoryError, setCategoryError] = useState('')
-    const [searchTerm, setSearchTerm] = useState('')
-    const [selectedCategory, setSelectedCategory] = useState('all')
-    const [selectedStockStatus, setSelectedStockStatus] = useState('all')
-    const [movements, setMovements] = useState<StockMovement[]>([])
-    const [movementHistoryError, setMovementHistoryError] = useState('')
-    const [categories, setCategories] = useState<Category[]>([])
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState('')
-    const [showForm, setShowForm] = useState(false)
-    const [saving, setSaving] = useState(false)
-    const [editingProduct, setEditingProduct] = useState<Product | null>(null)
-    const [showMovementForm, setShowMovementForm] = useState(false)
-    const [movementProductId, setMovementProductId] = useState('')
-    const [movementType, setMovementType] = useState<'IN' | 'OUT'>('IN')
-    const [movementQuantity, setMovementQuantity] = useState('1')
-    const [movementError, setMovementError] = useState('')
-    const [movementSuccess, setMovementSuccess] = useState('')
-    const [savingMovement, setSavingMovement] = useState(false)
-    const [formError, setFormError] = useState('')
-    const [success, setSuccess] = useState('')
+  const { products, categories, movements, loading, error, reload } = useStockData()
 
-    const [name, setName] = useState('')
-    const [sku, setSku] = useState('')
-    const [description, setDescription] = useState('')
-    const [price, setPrice] = useState('')
-    const [quantity, setQuantity] = useState('0')
-    const [categoryId, setCategoryId] = useState('')
+  const [panel, setPanel] = useState<Panel>(null)
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null)
+  const [filters, setFilters] = useState(DEFAULT_FILTERS)
+  const [success, setSuccess] = useState('')
+  const [actionError, setActionError] = useState('')
 
-    async function loadData() {
-        setLoading(true)
-        setError('')
+  const filteredProducts = useMemo(
+    () => filterProducts(products, filters),
+    [products, filters],
+  )
+  const stats = useMemo(() => computeStats(products), [products])
 
-        try {
-            const [productsData, categoriesData, movementsData] =
-                await Promise.all([
-                    getProducts(),
-                    getCategories(),
-                    getStockMovements(),
-                ])
+  function openPanel(next: Exclude<Panel, null>) {
+    setSuccess('')
+    setActionError('')
+    setEditingProduct(null)
+    setPanel((current) => (current === next ? null : next))
+  }
 
-            setProducts(productsData)
-            setCategories(categoriesData)
-            setMovements(movementsData)
-            setMovementHistoryError('')
-        } catch (err) {
-            setError(
-                err instanceof Error
-                    ? err.message
-                    : 'Impossible de charger les données.'
-            )
-        } finally {
-            setLoading(false)
-        }
+  function closePanel() {
+    setPanel(null)
+    setEditingProduct(null)
+  }
+
+  function handleEdit(product: Product) {
+    setSuccess('')
+    setActionError('')
+    setEditingProduct(product)
+    setPanel('product')
+  }
+
+  async function handleDelete(product: Product) {
+    if (!window.confirm(`Voulez-vous vraiment supprimer le produit « ${product.name} » ?`)) {
+      return
     }
 
-
-    const handleCreateCategory = async (event: Parameters<NonNullable<React.ComponentProps<'form'>['onSubmit']>>[0]) => {
-        event.preventDefault()
-        setCategoryError('')
-        setSuccess('')
-
-        const name = newCategoryName.trim()
-
-        if (!name) {
-            setCategoryError('Le nom de la catégorie est obligatoire.')
-            return
-        }
-
-        try {
-            await createCategory(name)
-            setNewCategoryName('')
-            setShowCategoryForm(false)
-            setSuccess('Catégorie créée avec succès !')
-
-            await loadData()
-        } catch (error) {
-            setCategoryError(
-                error instanceof Error
-                    ? error.message
-                    : 'Erreur lors de la création de la catégorie.'
-            )
-        }
+    setSuccess('')
+    setActionError('')
+    try {
+      await deleteProduct(product.id)
+      setSuccess(`Le produit « ${product.name} » a été supprimé.`)
+      await reload()
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Erreur lors de la suppression.')
     }
+  }
 
-
-    const handleDeleteProduct = async (product: Product) => {
-        const confirmed = window.confirm(
-            `Voulez-vous vraiment supprimer le produit « ${product.name} » ?`
-        )
-
-        if (!confirmed) {
-            return
-        }
-
-        setError('')
-        setSuccess('')
-
-        try {
-            await deleteProduct(product.id)
-            setSuccess(`Le produit « ${product.name} » a été supprimé.`)
-            await loadData()
-        } catch (error) {
-            setError(
-                error instanceof Error
-                    ? error.message
-                    : 'Erreur lors de la suppression du produit.'
-            )
-        }
+  async function handleSaveProduct(input: ProductInput) {
+    if (editingProduct) {
+      await updateProduct(editingProduct.id, input)
+      setSuccess('Produit modifié avec succès.')
+    } else {
+      await createProduct(input)
+      setSuccess('Produit créé avec succès.')
     }
-
-
-
-    useEffect(() => {
-        void loadData()
-    }, [])
-
-    function resetForm() {
-        setName('')
-        setSku('')
-        setDescription('')
-        setPrice('')
-        setQuantity('0')
-        setCategoryId('')
-        setFormError('')
-    }
-
-    function handleEditProduct(product: Product) {
-        setEditingProduct(product)
-        setName(product.name)
-        setSku(product.sku)
-        setDescription(product.description ?? '')
-        setPrice(String(product.price))
-        setQuantity(String(product.quantity))
-        setCategoryId(product.category ? String(product.category.id) : '')
-        setFormError('')
-        setSuccess('')
-        setShowForm(true)
-    }
-
-    async function handleCreateMovement(
-        event: Parameters<
-            NonNullable<React.ComponentProps<'form'>['onSubmit']>
-        >[0],
-    ) {
-        event.preventDefault()
-        setMovementError('')
-        setMovementSuccess('')
-
-        if (!movementProductId) {
-            setMovementError('Sélectionne un produit.')
-            return
-        }
-
-        const parsedQuantity = Number(movementQuantity)
-
-        if (!Number.isInteger(parsedQuantity) || parsedQuantity <= 0) {
-            setMovementError('La quantité doit être un entier supérieur à zéro.')
-            return
-        }
-
-        const product = products.find(
-            (item) => item.id === Number(movementProductId),
-        )
-
-        if (!product) {
-            setMovementError('Le produit sélectionné est introuvable.')
-            return
-        }
-
-        if (movementType === 'OUT' && parsedQuantity > product.quantity) {
-            setMovementError(
-                `Stock insuffisant : ${product.quantity} unité(s) disponible(s).`,
-            )
-            return
-        }
-
-        setSavingMovement(true)
-
-        try {
-            await createStockMovement(
-                product.id,
-                movementType,
-                parsedQuantity,
-            )
-
-            await loadData()
-
-            setMovementSuccess(
-                movementType === 'IN'
-                    ? 'Entrée de stock enregistrée avec succès.'
-                    : 'Sortie de stock enregistrée avec succès.',
-            )
-
-            setMovementQuantity('1')
-            setShowMovementForm(false)
-        } catch (err) {
-            setMovementError(
-                err instanceof Error
-                    ? err.message
-                    : 'Une erreur est survenue lors du mouvement de stock.',
-            )
-        } finally {
-            setSavingMovement(false)
-        }
-    }
-
-
-    async function handleCreateProduct(
-        event: Parameters<
-            NonNullable<React.ComponentProps<'form'>['onSubmit']>
-        >[0],
-    ) {
-        event.preventDefault()
-        setFormError('')
-        setSuccess('')
-
-        if (!categoryId) {
-            setFormError('Sélectionne une catégorie.')
-            return
-        }
-
-        const parsedPrice = Number(price)
-        const parsedQuantity = Number(quantity)
-
-        if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
-            setFormError('Le prix doit être un nombre positif ou nul.')
-            return
-        }
-
-        if (!Number.isInteger(parsedQuantity) || parsedQuantity < 0) {
-            setFormError('La quantité doit être un entier positif ou nul.')
-            return
-        }
-
-        const productData: CreateProductData = {
-            name: name.trim(),
-            sku: sku.trim(),
-            description: description.trim(),
-            price: parsedPrice,
-            quantity: parsedQuantity,
-            category: {id: Number(categoryId)},
-        }
-
-        setSaving(true)
-
-        try {
-            if (editingProduct) {
-                await updateProduct(editingProduct.id, productData)
-                setSuccess('Produit modifié avec succès.')
-            } else {
-                await createProduct(productData)
-                setSuccess('Produit créé avec succès.')
-            }
-
-            await loadData()
-            resetForm()
-            setEditingProduct(null)
-            setShowForm(false)
-        } catch (err) {
-            setFormError(
-                err instanceof Error
-                    ? err.message
-                    : 'Une erreur est survenue lors de la création.',
-            )
-        } finally {
-            setSaving(false)
-        }
-    }
-    const normalizeText = (text: string) =>
-        text
-            .toLowerCase()
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-
-    const filteredProducts = products.filter((product) => {
-        const search = normalizeText(searchTerm.trim())
-
-        const matchesSearch =
-            normalizeText(product.name).includes(search) ||
-            normalizeText(product.sku).includes(search) ||
-            normalizeText(product.category?.name ?? '').includes(search)
-
-        const matchesCategory =
-            selectedCategory === 'all' ||
-            String(product.category?.id ?? '') === selectedCategory
-
-        const matchesStockStatus =
-            selectedStockStatus === 'all' ||
-            (selectedStockStatus === 'low' && product.quantity <= 5) ||
-            (selectedStockStatus === 'available' && product.quantity > 5)
-
-        return matchesSearch && matchesCategory && matchesStockStatus
-    })
-    return (
-        <main className="stockpilot">
-            <header className="app-header">
-                <div>
-                    <p className="eyebrow">GESTION D'INVENTAIRE</p>
-                    <h1>StockPilot</h1>
-                    <p className="subtitle">
-                        Gérez vos produits et suivez votre stock en un seul endroit.
-                    </p>
-                </div>
-
-
-                <div className="header-actions">
-                    <button
-                        className="primary-button"
-                        onClick={() => {
-                            setShowForm(!showForm)
-                            setFormError('')
-                            setSuccess('')
-                        }}
-                    >
-                        {showForm ? 'Annuler' : '+ Nouveau produit'}
-                    </button>
-
-                    <button
-                        className="primary-button"
-                        onClick={() => {
-                            setShowCategoryForm(!showCategoryForm)
-                            setFormError('')
-                            setSuccess('')
-                        }}
-                    >
-                        {showCategoryForm ? 'Annuler catégorie' : '+ Nouvelle catégorie'}
-                    </button>
-                </div>
-
-
-                <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => {
-                        setShowMovementForm(!showMovementForm)
-                        setMovementError('')
-                        setMovementSuccess('')
-                    }}
-                >
-                    {showMovementForm ? 'Annuler le mouvement' : 'Mouvement de stock'}
-                </button>
-
-            </header>
-
-            {showForm && (
-                <section className="products-section form-section">
-                    <h2>{editingProduct ? 'Modifier le produit' : 'Nouveau produit'}</h2>
-                    <p className="form-intro">
-                        Renseigne les informations du produit ci-dessous.
-                    </p>
-
-                    <form onSubmit={handleCreateProduct}>
-                        <div className="form-grid">
-                            <label>
-                                Nom du produit *
-                                <input
-                                    required
-                                    value={name}
-                                    onChange={(event) => setName(event.target.value)}
-                                    placeholder="Clavier mécanique"
-                                />
-                            </label>
-
-                            <label>
-                                SKU *
-                                <input
-                                    required
-                                    value={sku}
-                                    onChange={(event) => setSku(event.target.value)}
-                                    placeholder="CLAV-002"
-                                />
-                            </label>
-
-                            <label className="full-width">
-                                Description
-                                <textarea
-                                    value={description}
-                                    onChange={(event) => setDescription(event.target.value)}
-                                    placeholder="Description du produit"
-                                    rows={3}
-                                />
-                            </label>
-
-                            <label>
-                                Prix (€) *
-                                <input
-                                    required
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={price}
-                                    onChange={(event) => setPrice(event.target.value)}
-                                    placeholder="79.99"
-                                />
-                            </label>
-
-                            <label>
-                                Quantité initiale *
-                                <input
-                                    required
-                                    type="number"
-                                    min="0"
-                                    step="1"
-                                    value={quantity}
-                                    onChange={(event) => setQuantity(event.target.value)}
-                                />
-                            </label>
-
-                            <label className="full-width">
-                                Catégorie *
-                                <select
-                                    required
-                                    value={categoryId}
-                                    onChange={(event) => setCategoryId(event.target.value)}
-                                >
-                                    <option value="">Choisir une catégorie</option>
-                                    {categories.map((category) => (
-                                        <option key={category.id} value={category.id}>
-                                            {category.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
-                        </div>
-
-                        {formError && <p className="error-message">{formError}</p>}
-
-                        <div className="form-actions">
-                            <button
-                                type="button"
-                                className="secondary-button"
-                                onClick={() => {
-                                    setShowForm(false)
-                                    setEditingProduct(null)
-                                    resetForm()
-                                }}
-                            >
-                                Annuler
-                            </button>
-                            <button
-                                type="submit"
-                                className="primary-button"
-                                disabled={saving}
-                            >
-                                {saving
-                                    ? 'Enregistrement...'
-                                    : editingProduct
-                                        ? 'Enregistrer les modifications'
-                                        : 'Créer le produit'}
-                            </button>
-                        </div>
-                    </form>
-                </section>
-            )}
-
-
-            {showCategoryForm && (
-                <section className="form-section">
-                    <h2>Nouvelle catégorie</h2>
-
-                    <form onSubmit={handleCreateCategory}>
-                        <div className="form-group">
-                            <label htmlFor="new-category-name">
-                                Nom de la catégorie
-                            </label>
-
-                            <input
-                                id="new-category-name"
-                                type="text"
-                                value={newCategoryName}
-                                onChange={(event) =>
-                                    setNewCategoryName(event.target.value)
-                                }
-                                placeholder="Ex. : Informatique"
-                                required
-                            />
-                        </div>
-
-                        {categoryError && (
-                            <p className="error-message">{categoryError}</p>
-                        )}
-
-                        <div className="form-actions">
-                            <button type="submit" className="primary-button">
-                                Créer la catégorie
-                            </button>
-
-                            <button
-                                type="button"
-                                className="secondary-button"
-                                onClick={() => {
-                                    setShowCategoryForm(false)
-                                    setNewCategoryName('')
-                                    setCategoryError('')
-                                }}
-                            >
-                                Annuler
-                            </button>
-                        </div>
-                    </form>
-                </section>
-            )}
-
-
-
-            {showMovementForm && (
-                <section className="products-section form-section">
-                    <h2>Mouvement de stock</h2>
-                    <p className="form-intro">
-                        Enregistre une entrée ou une sortie de stock.
-                    </p>
-
-                    <form onSubmit={handleCreateMovement}>
-                        <div className="form-grid">
-                            <label className="full-width">
-                                Produit *
-                                <select
-                                    required
-                                    value={movementProductId}
-                                    onChange={(event) =>
-                                        setMovementProductId(event.target.value)
-                                    }
-                                >
-                                    <option value="">Choisir un produit</option>
-                                    {products.map((product) => (
-                                        <option key={product.id} value={product.id}>
-                                            {product.name} — Stock : {product.quantity}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
-
-                            <label>
-                                Type de mouvement *
-                                <select
-                                    value={movementType}
-                                    onChange={(event) =>
-                                        setMovementType(event.target.value as 'IN' | 'OUT')
-                                    }
-                                >
-                                    <option value="IN">Entrée de stock</option>
-                                    <option value="OUT">Sortie de stock</option>
-                                </select>
-                            </label>
-
-                            <label>
-                                Quantité *
-                                <input
-                                    required
-                                    type="number"
-                                    min="1"
-                                    step="1"
-                                    value={movementQuantity}
-                                    onChange={(event) =>
-                                        setMovementQuantity(event.target.value)
-                                    }
-                                />
-                            </label>
-                        </div>
-
-                        {movementError && (
-                            <p className="error-message">{movementError}</p>
-                        )}
-
-                        {movementSuccess && (
-                            <p className="success-message">{movementSuccess}</p>
-                        )}
-
-                        <div className="form-actions">
-                            <button
-                                type="button"
-                                className="secondary-button"
-                                onClick={() => {
-                                    setShowMovementForm(false)
-                                    setMovementError('')
-                                }}
-                            >
-                                Annuler
-                            </button>
-
-                            <button
-                                type="submit"
-                                className="primary-button"
-                                disabled={savingMovement || products.length === 0}
-                            >
-                                {savingMovement
-                                    ? 'Enregistrement...'
-                                    : 'Enregistrer le mouvement'}
-                            </button>
-                        </div>
-                    </form>
-                </section>
-            )}
-
-            {success && <p className="success-message">{success}</p>}
-
-            <section className="dashboard">
-                <div className="stat-card">
-                    <span className="stat-label">Références produits : </span>
-                    <strong className="stat-value">{products.length}</strong>
-                </div>
-
-                <div className="stat-card">
-                    <span className="stat-label">Unités en stock : </span>
-                    <strong className="stat-value">
-                        {products.reduce((total, product) => total + product.quantity, 0)}
-                    </strong>
-                </div>
-
-                <div className="stat-card">
-                    <span className="stat-label">Stock faible : </span>
-                    <strong className="stat-value">
-                        {products.filter((product) => product.quantity <= 5).length}
-                    </strong>
-                </div>
-            </section>
-
-            <section className="products-section">
-                <div className="section-heading">
-                    <div>
-                        <h2>Vos produits</h2>
-                        <p>Consultez les quantités disponibles et les prix.</p>
-                    </div>
-                </div>
-
-                <div className="search-container">
-                    <input
-                        type="text"
-                        placeholder="Rechercher un produit par nom, SKU ou catégorie..."
-                        value={searchTerm}
-                        onChange={(event) => setSearchTerm(event.target.value)}
-                    />
-                </div>
-                <div className="filter-container">
-                    <label htmlFor="category-filter">Catégorie :</label>
-                    <select
-                        id="category-filter"
-                        value={selectedCategory}
-                        onChange={(event) => setSelectedCategory(event.target.value)}
-                    >
-                        <option value="all">Toutes les catégories</option>
-                        {categories.map((category) => (
-                            <option key={category.id} value={String(category.id)}>
-                                {category.name}
-                            </option>
-                        ))}
-                    </select>
-                </div>
-
-                <div className="filter-container">
-                    <label htmlFor="stock-status-filter">État du stock :</label>
-                    <select
-                        id="stock-status-filter"
-                        value={selectedStockStatus}
-                        onChange={(event) => setSelectedStockStatus(event.target.value)}
-                    >
-                        <option value="all">Tous les stocks</option>
-                        <option value="available">Disponible</option>
-                        <option value="low">Stock faible</option>
-                    </select>
-                </div>
-
-                {loading && <p className="message">Chargement des produits...</p>}
-                {error && <p className="error-message">{error}</p>}
-
-                {!loading && !error && products.length === 0 && (
-                    <p className="message">Aucun produit pour le moment.</p>
-                )}
-                {!loading &&
-                    !error &&
-                    products.length > 0 &&
-                    filteredProducts.length === 0 && (
-                        <p className="message">
-                            Aucun produit ne correspond à « {searchTerm} ».
-                        </p>
-                    )}
-
-                {!loading && !error && filteredProducts.length > 0 && (
-                    <div className="table-wrapper">
-                        <table>
-                            <thead>
-                            <tr>
-                                <th>Produit</th>
-                                <th>Description</th>
-                                <th>SKU</th>
-                                <th>Catégorie</th>
-                                <th>Prix</th>
-                                <th>Quantité</th>
-                                <th>État du stock</th>
-                                <th>Actions</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            {filteredProducts.map((product) => (
-                                <tr key={product.id}>
-                                    <td>
-                                        <strong>{product.name}</strong>
-                                    </td>
-                                    <td>
-                                        {product.description || '—'}
-                                    </td>
-                                    <td>{product.sku}</td>
-                                    <td>{product.category?.name ?? 'Sans catégorie'}</td>
-                                    <td>
-                                        {Number(product.price).toLocaleString('fr-FR', {
-                                            style: 'currency',
-                                            currency: 'EUR',
-                                        })}
-                                    </td>
-                                    <td>{product.quantity}</td>
-                                    <td>
-                                        <span
-                                            className={`stock-badge ${
-                                                product.quantity <= 5 ? 'stock-low' : 'stock-normal'
-                                            }`}
-                                        >
-                                            {product.quantity <= 5 ? 'Stock faible' : 'Disponible'}
-                                        </span>
-                                    </td>
-                                    <td>
-
-                                        <div className="action-buttons">
-                                            <button
-                                                type="button"
-                                                className="secondary-button"
-                                                onClick={() => handleEditProduct(product)}
-                                            >
-                                                Modifier
-                                            </button>
-
-                                            <button
-                                                type="button"
-                                                className="danger-button"
-                                                onClick={() => handleDeleteProduct(product)}
-                                            >
-                                                Supprimer
-                                            </button>
-                                        </div>
-
-                                    </td>
-                                </tr>
-                            ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </section>
-
-            <section className="dashboard-section">
-                <h2>Historique des mouvements</h2>
-
-                {movementHistoryError && (
-                    <p className="error-message">{movementHistoryError}</p>
-                )}
-
-                {!movementHistoryError && movements.length === 0 && (
-                    <p>Aucun mouvement de stock enregistré pour le moment.</p>
-                )}
-
-                {movements.length > 0 && (
-                    <div className="table-container">
-                        <table>
-                            <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Date et heure</th>
-                                <th>Produit</th>
-                                <th>Type</th>
-                                <th>Quantité</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            {[...movements].reverse().map((movement) => (
-                                <tr key={movement.id}>
-                                    <td>{movement.id}</td>
-                                    <td>
-                                        {new Date(movement.createdAt).toLocaleString('fr-FR', {
-                                            dateStyle: 'short',
-                                            timeStyle: 'short',
-                                        })}
-                                    </td>
-                                    <td>
-                                        {movement.product?.name ?? 'Produit inconnu'}
-                                    </td>
-                                    <td>
-                                            <span
-                                                className={`stock-badge ${
-                                                    movement.type === 'IN'
-                                                        ? 'stock-normal'
-                                                        : 'stock-low'
-                                                }`}
-                                            >
-                                                {movement.type === 'IN'
-                                                    ? 'Entrée'
-                                                    : movement.type === 'OUT'
-                                                        ? 'Sortie'
-                                                        : 'Ajustement'}
-                                            </span>
-                                    </td>
-                                    <td>{movement.quantity}</td>
-                                </tr>
-                            ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </section>
-        </main>
+    await reload()
+    closePanel()
+  }
+
+  async function handleCreateCategory(name: string) {
+    await createCategory(name)
+    setSuccess('Catégorie créée avec succès !')
+    await reload()
+    closePanel()
+  }
+
+  async function handleCreateMovement(
+    productId: number,
+    type: EditableMovementType,
+    quantity: number,
+  ) {
+    await createStockMovement(productId, type, quantity)
+    setSuccess(
+      type === 'IN'
+        ? 'Entrée de stock enregistrée avec succès.'
+        : 'Sortie de stock enregistrée avec succès.',
     )
+    await reload()
+    closePanel()
+  }
+
+  return (
+    <main className="stockpilot">
+      <header className="app-header">
+        <div>
+          <p className="eyebrow">GESTION D'INVENTAIRE</p>
+          <h1>StockPilot</h1>
+          <p className="subtitle">
+            Gérez vos produits et suivez votre stock en un seul endroit.
+          </p>
+        </div>
+
+        <div className="header-actions">
+          <button type="button" className="primary-button" onClick={() => openPanel('product')}>
+            {panel === 'product' && !editingProduct ? 'Annuler' : '+ Nouveau produit'}
+          </button>
+          <button type="button" className="primary-button" onClick={() => openPanel('category')}>
+            {panel === 'category' ? 'Annuler catégorie' : '+ Nouvelle catégorie'}
+          </button>
+          <button type="button" className="secondary-button" onClick={() => openPanel('movement')}>
+            {panel === 'movement' ? 'Annuler le mouvement' : 'Mouvement de stock'}
+          </button>
+        </div>
+      </header>
+
+      {panel === 'product' && (
+        <ProductForm
+          key={editingProduct?.id ?? 'new'}
+          categories={categories}
+          product={editingProduct}
+          onSubmit={handleSaveProduct}
+          onCancel={closePanel}
+        />
+      )}
+      {panel === 'category' && (
+        <CategoryForm onSubmit={handleCreateCategory} onCancel={closePanel} />
+      )}
+      {panel === 'movement' && (
+        <MovementForm products={products} onSubmit={handleCreateMovement} onCancel={closePanel} />
+      )}
+
+      {success && (
+        <p className="success-message" role="status">
+          {success}
+        </p>
+      )}
+      {actionError && (
+        <p className="error-message" role="alert">
+          {actionError}
+        </p>
+      )}
+
+      <StatsCards stats={stats} />
+
+      <section className="products-section">
+        <div className="section-heading">
+          <div>
+            <h2>Vos produits</h2>
+            <p>Consultez les quantités disponibles et les prix.</p>
+          </div>
+        </div>
+
+        <ProductFilters categories={categories} filters={filters} onChange={setFilters} />
+
+        {loading && <p className="message">Chargement des produits...</p>}
+        {error && (
+          <p className="error-message" role="alert">
+            {error}
+          </p>
+        )}
+
+        {!loading && !error && products.length === 0 && (
+          <p className="message">Aucun produit pour le moment.</p>
+        )}
+        {!loading && !error && products.length > 0 && filteredProducts.length === 0 && (
+          <p className="message">Aucun produit ne correspond à votre recherche.</p>
+        )}
+        {!loading && !error && filteredProducts.length > 0 && (
+          <ProductTable
+            products={filteredProducts}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+          />
+        )}
+      </section>
+
+      <MovementHistory movements={movements} />
+    </main>
+  )
 }
 
 export default App

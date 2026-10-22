@@ -1,49 +1,21 @@
+import { jsonBody, request } from './http'
+import type { MovementType, StockMovement } from './types'
 
-const API_URL = '/api/movements';
+const API_URL = '/api/movements'
 
-export type MovementType = 'IN' | 'OUT' | 'ADJUSTMENT';
-
-export interface StockMovement {
-    id: number;
-    type: MovementType;
-    quantity: number;
-    createdAt: string;
-    product?: { id: number; name: string; sku: string };
+/** Historique complet, du plus récent au plus ancien (ordre fourni par l'API). */
+export function getStockMovements(): Promise<StockMovement[]> {
+  return request<StockMovement[]>(API_URL, undefined, 'Erreur lors du chargement des mouvements')
 }
 
-export async function createStockMovement(
-    productId: number,
-    type: 'IN' | 'OUT',
-    quantity: number,
+export function createStockMovement(
+  productId: number,
+  type: Exclude<MovementType, 'ADJUSTMENT'>,
+  quantity: number,
 ): Promise<StockMovement> {
-    const params = new URLSearchParams({
-        productId: String(productId),
-        type,
-        quantity: String(quantity),
-    });
-
-    const response = await fetch(`${API_URL}?${params.toString()}`, {
-        method: 'POST',
-    });
-
-    if (!response.ok) {
-        const message = await response.text();
-        throw new Error(
-            message || `Erreur lors du mouvement de stock : ${response.status}`,
-        );
-    }
-
-    return (await response.json()) as StockMovement;
-}
-
-export async function getStockMovements(): Promise<StockMovement[]> {
-    const response = await fetch(API_URL);
-
-    if (!response.ok) {
-        throw new Error(
-            `Erreur lors du chargement des mouvements : ${response.status}`,
-        );
-    }
-
-    return (await response.json()) as StockMovement[];
+  return request<StockMovement>(
+    API_URL,
+    jsonBody('POST', { productId, type, quantity }),
+    'Erreur lors du mouvement de stock',
+  )
 }
