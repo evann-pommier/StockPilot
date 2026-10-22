@@ -20,7 +20,7 @@ jobs:
         run: chmod +x mvnw && ./mvnw -B verify
       - name: Publier le rapport de couverture
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: jacoco-report
           path: target/site/jacoco
