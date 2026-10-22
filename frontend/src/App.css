@@ -476,7 +476,7 @@ td .secondary-button {
 }
 
 .filter-container select:focus {
-  border-color: var(--primary);z
+  border-color: var(--primary);
   box-shadow: 0 0 0 3px #365cf51a;
 }
 
